@@ -114,13 +114,14 @@ for k in range(0, 1):
     # Calc Jacobians Phi(k+1, k) and Gamma(k+1, k)
     Fx          = kf_calc_Fx(0, x_k1_k, U_k[:,k])
     Hx          = kf_calc_Hx(0, x_k1_k, U_k[:,k])
-    # TODO i think this has bugs, Continuous to discrete time transformation of Df(x,u,t)
+    # Continuous to discrete time transformation of Df(x,u,t)
     ss_B        = control.matlab.ss(Fx, B, Hx, np.zeros((nm, m)))
     ss_G        = control.matlab.ss(Fx, G, np.zeros((nm, n)), np.zeros((nm, n)))
     Psi         = control.matlab.c2d(ss_B, dt).B
     Phi         = control.matlab.c2d(ss_G, dt).A
     Gamma       = control.matlab.c2d(ss_G, dt).B
 
-
-    print('Phi = ', Phi)
-    print('Gamma = ', Gamma)
+    # P(k+1|k) (prediction covariance matrix)
+    P_k1_k      = Phi@P_k1_k1@Phi.transpose() + Gamma@Q@Gamma.transpose()
+    
+    print(f'P_k1_k = {P_k1_k}')

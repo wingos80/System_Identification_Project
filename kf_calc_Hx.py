@@ -28,7 +28,6 @@ def kf_calc_Hx(t, x, u):
     
     # calculate Jacobian matrix of system dynamics
     Hx = np.zeros([3, n])
-    
     # derivatives of h1
     Hx[0,0] = -x[2]/(x[0]**2 + x[2]**2)*(1 + x[3])
     Hx[0,2] = x[0]/(x[0]**2 + x[2]**2)*(1 + x[3])
