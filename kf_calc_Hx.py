@@ -6,7 +6,7 @@ import numpy as np
 def kf_calc_Hx(t, x, u):
     """
     Calculates the Jacobian of the output dynamics equation, 
-    n is number of states, nm is number of outputs.
+    n is number of states, nm (=3) is number of outputs.
 
     Parameters
     ----------
@@ -24,12 +24,11 @@ def kf_calc_Hx(t, x, u):
         Jacobian of the output dynamics equation
 
     """
-    
     n = x.size
     
     # calculate Jacobian matrix of system dynamics
-    Hx = np.zeros([3, 4])
-    print(x)
+    Hx = np.zeros([3, n])
+    
     # derivatives of h1
     Hx[0,0] = -x[2]/(x[0]**2 + x[2]**2)*(1 + x[3])
     Hx[0,2] = x[0]/(x[0]**2 + x[2]**2)*(1 + x[3])
