@@ -9,9 +9,9 @@ from kf_calc_Fx import kf_calc_Fx
 from kf_calc_Hx import kf_calc_Hx
 
 ########################################################################
-# Python implementation of Iterated Extended Kalman Filter
+# Python implementation of Iterated Extended Kalman Filter 
 # 
-#   Author:     Wing Chan
+#   Author:     Wing Chan, adapted from Coen de Visser
 ########################################################################
 
 
@@ -37,14 +37,14 @@ U_k = train_data[4:]
 ## Set simulation parameters
 ########################################################################
 
-n               = 4                           # state dimension
+n               = 4                          # state dimension
 nm              = 3                          # measurement dimension
 m               = 3                          # input dimension
 dt              = 0.01                       # time step (s)
 N               = len(C_m)                   # number of samples
 epsilon         = 10**(-10)                  # IEKF threshold
 doIEKF          = True                       # If false, EKF without iterations is used
-maxIterations   = 100                        # maximum amount of iterations per sample
+maxIterations   = 500                        # maximum amount of iterations per sample
 
 printfigs       = False                      # enable saving figures
 figpath         = 'figs/'                    # direction for printed figures
@@ -53,40 +53,40 @@ figpath         = 'figs/'                    # direction for printed figures
 ## Set initial values for states and statistics
 ########################################################################
 
-E_x_0       = np.array([[150],[0],[0],[-0.6]])       # initial estimate of optimal value of x_k1_k1
+E_x_0       = np.array([[150],[0],[0],[-0.6]])    # initial estimate of optimal value of x_k1_k1
 
 B           = np.array([[1, 0, 0],
                         [0, 1, 0],
                         [0, 0, 1],
-                        [0, 0, 0]])          # input matrix
-G           = np.zeros((4,4))                # input noise matrix, why is this 4x4 and not 4x3?
+                        [0, 0, 0]])               # input matrix
+G           = np.zeros((4,4))                     # input noise matrix, why is this 4x4 and not 4x3?
 
-# TODO hmmmm. Initial estimate for covariance matrix
-std_x_0   = 1                                     # initial standard deviation of state prediction error
+# Initial estimate for state covariance matrix
+std_x_0   = 1                # initial standard deviation of state prediction error (for first 3 states)
 P_0       = np.array([[std_x_0**2, 0, 0, 0],
                       [0, std_x_0**2, 0, 0],
                       [0, 0, std_x_0**2, 0], 
-                      [0, 0, 0, std_x_0**2]])    # initial covariance of state prediction error
+                      [0, 0, 0, 0.3**2]])         # initial covariance of state prediction error
 
 # System noise statistics, all noise are white (unbiased and uncorrelated in time)
-std_w_u = 1*10**(-3)                        # standard deviation of u noise
-std_w_v = 1*10**(-3)                        # standard deviation of v noise
-std_w_w = 1*10**(-3)                        # standard deviation of w noise
-std_w_C = 0                                # standard deviation of Caup noise
+std_w_u = 1*10**(-3)         # standard deviation of u noise
+std_w_v = 1*10**(-3)         # standard deviation of v noise
+std_w_w = 1*10**(-3)         # standard deviation of w noise
+std_w_C = 0                  # standard deviation of Caup noise
 
 Q         = np.array([[std_w_u**2, 0, 0, 0],
                         [0, std_w_v**2, 0, 0],
                         [0, 0, std_w_w**2, 0], 
-                        [0, 0, 0, std_w_C**2]])     # variance of system noise
+                        [0, 0, 0, std_w_C**2]])   # variance of system noise
 
 # Measurement noise statistics, all noise are white (unbiased and uncorrelated in time)
 std_nu_a = 0.035             # standard deviation of alpha noise
 std_nu_b = 0.010             # standard deviation of beta noise
 std_nu_V = 0.110             # standard deviation of velocity noise
 
-R      = np.array([[std_nu_a**2, 0, 0],
+R         = np.array([[std_nu_a**2, 0, 0],
                     [0, std_nu_b**2, 0],
-                    [0, 0, std_nu_V**2]])     # variance of system noise
+                    [0, 0, std_nu_V**2]])         # variance of system noise
 
 ########################################################################
 ## Initialize Extended Kalman filter
@@ -111,10 +111,13 @@ P_k1_k1     = np.array(P_0)     # P(0|0) = P(0)
 ## Run the Kalman filter
 ########################################################################
 
-t0          = time.time()
+tic          = time.time()
 
 # Run the filter through all N samples
 for k in range(0, N):
+    if k % 100 == 0:
+        tonc = time.time()
+        print(f'Sample {k} of {N} ({k/N*100:.3f} %), time elapsed: {tonc-tic:.2f} s')
     
     # x(k+1|k) (prediction)
     t, x_k1_k   = rk4(kf_calc_f, x_k1_k1, U_k[:,k], [t_k, t_k1])   # add in U_k vector
@@ -141,7 +144,8 @@ for k in range(0, N):
         
         while (err > epsilon):
             if (itts >= maxIterations):
-                print("Terminating IEKF: exceeded max iterations (%d)\n" %(maxIterations))  
+                print(f'Terminating IEKF: exceeded max iterations ({maxIterations})')
+                print(f'Delta eta: {err}, epsilon: {epsilon}')
                 break
             
             itts    = itts + 1
@@ -151,19 +155,21 @@ for k in range(0, N):
             Hx           = kf_calc_Hx(0, eta1, U_k[:,k])
             
             # Observation and observation error predictions
-            z_k1_k      = kf_calc_h(0, eta1, U_k[:,k])                         # prediction of observation (for validation)   
-            P_zz        = Hx@P_k1_k@Hx.transpose() + R      # covariance matrix of observation error (for validation)   
+            z_k1_k      = kf_calc_h(0, eta1, U_k[:,k])          # prediction of observation (for validation)   
+            P_zz        = Hx@P_k1_k@Hx.transpose() + R          # covariance matrix of observation error (for validation)   
+
+            # Do try in case the covariance matrix is too small
             try:
-                std_z       = np.sqrt(np.diagflat(P_zz))           # standard deviation of observation error (for validation)    
+                std_z       = np.sqrt(P_zz.diagonal())          # standard deviation of observation error (for validation)    
             except:
-                std_z       = np.zeros([nm, 1])
-            # K(k+1) (gain)
-            K_1           = P_k1_k@Hx.transpose()  # Kalman gain
-            K             = K_1@np.linalg.inv(P_zz)  # Kalman gain
+                std_z       = np.zeros([nm, 1])                 # standard deviation of observation error (for validation)  
+
+            # K(k+1) (gain), Kalman Gain
+            K             = P_k1_k@Hx.transpose()@np.linalg.inv(P_zz)
         
-            # new observation
-            eta2_temp   = K@(Z_k[:,k] - z_k1_k - Hx@(x_k1_k - eta1))
-            eta2        = x_k1_k + eta2_temp
+            # New observation
+            temp = np.reshape(Z_k[:,k], (3,1))   # Need to reshape this Z array to a column vector
+            eta2        = x_k1_k + K@(temp - z_k1_k - Hx@(x_k1_k - eta1))
             err         = np.linalg.norm(eta2-eta1)/np.linalg.norm(eta1)  
     
         IEKFitcount[k]  = itts
@@ -176,7 +182,7 @@ for k in range(0, N):
         # P_zz(k+1|k) (covariance matrix of innovation)
         z_k1_k      = kf_calc_h(0, x_k1_k, U_k[:,k])        
         P_zz        = Hx*P_k1_k*Hx.transpose() + R      # covariance matrix of observation error (for validation)   
-        std_z       = np.sqrt(np.diagflat(P_zz))           # standard deviation of observation error (for validation)    
+        std_z       = np.sqrt(P_zz.diagonal())          # standard deviation of observation error (for validation)    
     
         # K(k+1) (gain)
         K           = P_k1_k*Hx.transpose()/P_zz    
@@ -186,32 +192,64 @@ for k in range(0, N):
        
     # P(k|k) (correction) using the numerically stable form of P_k_1k_1 = (eye(n) - K*Hx) * P_kk_1 
     P_k1_k1     = (np.eye(n) - K*Hx)*P_k1_k*(np.eye(n) - K*Hx).transpose() + K*R*K.transpose()    
-    std_x_cor   = np.sqrt(np.diagflat(P_k1_k1))        # standard deviation of state estimation error (for validation)
+    std_x_cor   = np.sqrt(P_k1_k1.diagonal())        # standard deviation of state estimation error (for validation)
 
     # Next step
     t_k         = t_k1 
     t_k1        = t_k1 + dt
     
-    # store results
-    ZZ_pred[:,k]    = z_k1_k    
-    XX_k1_k1[:,k]   = x_k1_k1
-    PP_k1_k1[:,k]   = P_k1_k1
-    STD_x_cor[:,k]  = std_x_cor
-    STD_z[:,k]      = std_z
+    # store results, need to flatten the arrays to store in a matrix
+    ZZ_pred[:,k]    = z_k1_k.flatten()              # predicted observation
+    XX_k1_k1[:,k]   = x_k1_k1.flatten()             # estimated state
+    PP_k1_k1[:,k]   = P_k1_k1.diagonal().flatten()  # estimated state covariance (for validation)
+    STD_x_cor[:,k]  = std_x_cor.flatten()           # standard deviation of state estimation error (for validation)
+    STD_z[:,k]      = std_z.flatten()               # standard deviation of observation error (for validation)
 
-t1              = time.time()
+toc              = time.time()
 # calculate measurement estimation error (possible in real life)
-EstErr_z    = ZZ_pred-Z_k               # TODO dont forget to add Z_k back into code
+EstErr_z    = ZZ_pred-Z_k            
 
-print("IEKF state estimation error RMS = %.3E, completed run with %d samples in %.2f seconds." %(np.sqrt((np.square(EstErr_x)).mean()), N, t1-t0))  
+print(f'IEKF completed run with {N} samples in {toc-tic:.2f} seconds.')
 
 
+# Plot results
+x = np.arange(0, N, 1)
+y1 = XX_k1_k1[3,:]
+y2 = PP_k1_k1[3,:]  # variance of estimated C_a_up state
 fig = plt.figure(figsize=(12,6))
 ax = fig.add_subplot(1, 1 ,1 )
-ax.plot(XX_k1_k1.transpose(), 'r')
-ax.plot(Z_k.transpose(), 'k')
+ax.plot(x, y1, label='Estimated C_a_up')
+ax.plot(x, y2, label='Estimated variance of C_a_up')
 plt.xlim(0,N)
 plt.grid(True)
-plt.title('True State, estimated state and measurement')
-plt.legend(['true state', 'estimated state', 'measurement'], loc='upper right')
+plt.title('Estimated C_a_up')
+plt.legend()
+
+#  plot variance of all states
+y1 = PP_k1_k1[0,:]
+y2 = PP_k1_k1[1,:]
+y3 = PP_k1_k1[2,:]
+y4 = PP_k1_k1[3,:]
+fig = plt.figure(figsize=(12,6))
+ax = fig.add_subplot(1, 1 ,1 )
+ax.plot(x, y1, label='Estimated variance of u')
+ax.plot(x, y2, label='Estimated variance of v')
+ax.plot(x, y3, label='Estimated variance of w')
+ax.plot(x, y4, label='Estimated variance of C_a_up')
+plt.xlim(0,N)
+plt.grid(True)
+plt.title('Estimated variance of all states')
+plt.legend()
+
+# plot number of IEKF iterations at each IEKF step
+y1 = IEKFitcount
+fig = plt.figure(figsize=(12,6))
+ax = fig.add_subplot(1, 1 ,1 )
+ax.plot(x, y1, label='Number of IEKF iterations')
+plt.xlim(0,N)
+plt.grid(True)
+plt.title('Number of IEKF iterations')
+plt.legend()
+
 plt.show()
+
