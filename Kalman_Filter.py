@@ -162,7 +162,7 @@ for k in range(0, N):
             K             = P_k1_k@Hx.transpose()@np.linalg.inv(P_zz)
         
             # New observation
-            temp = np.reshape(Z_k[:,k], (3,1))   # Need to reshape this Z array to a column vector
+            temp = np.reshape(Z_k[:,k], (3,1))                  # Need to reshape this Z array to a column vector
             eta2        = x_k1_k + K@(temp - z_k1_k - Hx@(x_k1_k - eta1))
             err         = np.linalg.norm(eta2-eta1)/np.linalg.norm(eta1)  
     
@@ -200,13 +200,17 @@ for k in range(0, N):
     STD_z[:,k]      = std_z.flatten()               # standard deviation of observation error (for validation)
 
 toc         = time.time()
+
 # calculate measurement estimation error (possible in real life)
 EstErr_z    = ZZ_pred-Z_k            
 
 print(f'IEKF completed run with {N} samples in {toc-tic:.2f} seconds.')
 
 
-# Plot results
+########################################################################
+## Plotting results
+########################################################################
+
 x   = np.arange(0, N, 1)
 y1  = XX_k1_k1[3,:]         # Estimated C_a_up
 fig = plt.figure(figsize=(12,6))
@@ -245,3 +249,30 @@ plt.legend()
 
 plt.show()
 
+
+########################################################################
+## Reconstructing true alpha
+########################################################################
+
+alpha_m     = Z_k[0]                     # Measured alpha
+alpha_m_kf  = ZZ_pred[0]              # Predicted alpha from KF
+
+C_a_up      = XX_k1_k1[3,-1]              # Taking the last estimate of C_a_up
+alpha_true  = alpha_m/(1+C_a_up)      # Reconstructing true alpha, noise is assumed unbiased thus this estimation of 
+                                     # alpha is unbiased as well
+alpha_true_kf = alpha_m_kf/(1+C_a_up) # Reconstructing true alpha from KF
+# plotting and comparing the true alpha and the reconstructed alpha
+
+y1  = alpha_true                     # True alpha
+y2  = alpha_m                        # Measured alpha
+fig = plt.figure(figsize=(12,6))
+ax  = fig.add_subplot(1, 1 ,1 )
+ax.plot(x, y2, label='Measured alpha')
+ax.plot(x, y1, label='True alpha')
+ax.plot(x, alpha_true_kf, label='True alpha from KF')
+plt.xlim(0,N)
+plt.grid(True)
+plt.title('True alpha and Measured alpha')
+plt.legend()
+
+plt.show()
