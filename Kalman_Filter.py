@@ -1,31 +1,25 @@
+########################################################################
+# Python implementation of Iterated Extended Kalman Filter 
+# 
+#   Author: Wing Chan, adapted from Coen de Visser
+#   Email: wingyc80@gmail.com
+#   Date: 07-04-2023
+########################################################################
+
+
 import numpy as np
 from numpy import genfromtxt
 import matplotlib.pyplot as plt
 import time, sys, os, control.matlab
-from kf_calc_f import kf_calc_f
-from kf_calc_h import kf_calc_h
-from rk4 import rk4
-from kf_calc_Fx import kf_calc_Fx
-from kf_calc_Hx import kf_calc_Hx
-
-########################################################################
-# Python implementation of Iterated Extended Kalman Filter 
-# 
-#   Author:     Wing Chan, adapted from Coen de Visser
-########################################################################
-
-
-plt.close('all')
+from KF_Functions import *
+# Set random seed for reproducibility
 np.random.seed(7)
-pathname = os.path.basename(sys.argv[0])
-filename = os.path.splitext(pathname)[0]
-
 
 ########################################################################
 ## Importing data
 ########################################################################
 
-filename = 'F16traindata_CMabV_2023.csv'
+filename = 'data/F16traindata_CMabV_2023.csv'
 train_data = genfromtxt(filename, delimiter=',').T
 
 C_m = train_data[0]
@@ -205,7 +199,7 @@ for k in range(0, N):
     STD_x_cor[:,k]  = std_x_cor.flatten()           # standard deviation of state estimation error (for validation)
     STD_z[:,k]      = std_z.flatten()               # standard deviation of observation error (for validation)
 
-toc              = time.time()
+toc         = time.time()
 # calculate measurement estimation error (possible in real life)
 EstErr_z    = ZZ_pred-Z_k            
 
@@ -213,25 +207,23 @@ print(f'IEKF completed run with {N} samples in {toc-tic:.2f} seconds.')
 
 
 # Plot results
-x = np.arange(0, N, 1)
-y1 = XX_k1_k1[3,:]
-y2 = PP_k1_k1[3,:]  # variance of estimated C_a_up state
+x   = np.arange(0, N, 1)
+y1  = XX_k1_k1[3,:]         # Estimated C_a_up
 fig = plt.figure(figsize=(12,6))
-ax = fig.add_subplot(1, 1 ,1 )
+ax  = fig.add_subplot(1, 1 ,1 )
 ax.plot(x, y1, label='Estimated C_a_up')
-ax.plot(x, y2, label='Estimated variance of C_a_up')
 plt.xlim(0,N)
 plt.grid(True)
 plt.title('Estimated C_a_up')
 plt.legend()
 
 #  plot variance of all states
-y1 = PP_k1_k1[0,:]
-y2 = PP_k1_k1[1,:]
-y3 = PP_k1_k1[2,:]
-y4 = PP_k1_k1[3,:]
+y1  = PP_k1_k1[0,:]         # Estimated variance of u
+y2  = PP_k1_k1[1,:]         # Estimated variance of v
+y3  = PP_k1_k1[2,:]         # Estimated variance of w
+y4  = PP_k1_k1[3,:]         # Estimated variance of C_a_up
 fig = plt.figure(figsize=(12,6))
-ax = fig.add_subplot(1, 1 ,1 )
+ax  = fig.add_subplot(1, 1 ,1 )
 ax.plot(x, y1, label='Estimated variance of u')
 ax.plot(x, y2, label='Estimated variance of v')
 ax.plot(x, y3, label='Estimated variance of w')
@@ -242,9 +234,9 @@ plt.title('Estimated variance of all states')
 plt.legend()
 
 # plot number of IEKF iterations at each IEKF step
-y1 = IEKFitcount
+y1  = IEKFitcount           # Number of IEKF iterations
 fig = plt.figure(figsize=(12,6))
-ax = fig.add_subplot(1, 1 ,1 )
+ax  = fig.add_subplot(1, 1 ,1 )
 ax.plot(x, y1, label='Number of IEKF iterations')
 plt.xlim(0,N)
 plt.grid(True)
