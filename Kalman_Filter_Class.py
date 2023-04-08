@@ -6,6 +6,26 @@ class IEKF:
     A class to implement the Iterated Extended Kalman Filter (IEKF) for a nonlinear system
     """
     def __init__(self, N, nm, dt=0.01, epsilon=10**(-10), maxIterations=200):
+        """
+        Initialize the IEKF class
+        
+        Parameters
+        ----------
+        N : int
+            number of samples in the data set
+            
+        nm : int
+            number of measurements, output dimension 
+            
+        dt : float (optional)
+            time step (default is 0.01)
+            
+        epsilon : float (optional)
+            IEKF iteration difference threshold (default is 10**(-10))
+            
+        maxIterations : int (optional)
+            maximum amount of iterations per IEKF step (default is 200)    
+        """
         
         # set kalman filter parameters
         self.epsilon = epsilon          # IEKF iteration difference threshold
@@ -132,7 +152,7 @@ class IEKF:
         # Calc Jacobians, Phi(k+1, k), and Gamma(k+1, k)
         F_jacobian  = self.Fx(0, self.x_k1_k, U_k)
         ss_B        = control.matlab.ss(F_jacobian, self.B, np.zeros((self.nm, self.n)), np.zeros((self.nm, self.m)))  # state space model with A and B matrices, to identify phi and psi matrices
-        ss_G        = control.matlab.ss(F_jacobian, self.G, np.zeros((self.nm, self.n)), np.zeros((self.nm, self.m)))  # state space model with A and G matrices, to identify phi and gamma matrices
+        ss_G        = control.matlab.ss(F_jacobian, self.G, np.zeros((self.nm, self.n)), np.zeros((self.nm, self.n)))  # state space model with A and G matrices, to identify phi and gamma matrices
         
 
         # Continuous to discrete time transformation of state space matrices
@@ -191,11 +211,15 @@ class IEKF:
         Update the state and state covariance estimates, and store the results
         """
 
-        self.x_k1_k1         = self.eta2
-        
+        # Updating the state estimate
+        self.x_k1_k1 = self.eta2
+
+        # Making some local variables for readability
+        K   = self.Kalman_Gain
+        H_j = self.H_jacobian
+
         # P(k|k) (correction) using the numerically stable form of P_k_1k_1 = (eye(n) - K*Hx) * P_kk_1 
-        P_k1_k1     = (self.eye_n - self.Kalman_Gain*self.H_jacobian)*self.P_k1_k*(self.eye_n - self.Kalman_Gain*self.H_jacobian).transpose() \
-                    + self.Kalman_Gain*self.R*self.Kalman_Gain.transpose()    
+        P_k1_k1          = (self.eye_n - K@H_j)@self.P_k1_k@(self.eye_n - K@H_j).transpose() + K@self.R@K.transpose()    
         self.std_x_cor   = np.sqrt(P_k1_k1.diagonal())        # standard deviation of state estimation error (for validation)
 
         # Update to next time step
@@ -204,7 +228,7 @@ class IEKF:
 
         self.P_k1_k1     = P_k1_k1
 
-        # store results, need to flatten the arrays to store in a matrix
+        # Store results, need to flatten the arrays to store in a matrix
         self.ZZ_pred[:,k]    = self.z_k1_k.flatten()              # predicted observation
         self.XX_k1_k1[:,k]   = self.x_k1_k1.flatten()             # estimated state
         self.PP_k1_k1[:,k]   = self.P_k1_k1.diagonal().flatten()  # estimated state covariance (for validation)
@@ -221,8 +245,9 @@ class IEKF:
         Check if the IEKF has converged
         """
         bool_val = self.err > self.epsilon and self.itr < self.max_itr
-        # print(f'bool_val: {bool_val}, Delta eta: {self.err}, epsilon: {self.epsilon}, itr: {self.itr}')
         if self.itr > self.max_itr:
             print('Maximum number of iterations reached')
             print(f'Delta eta: {self.err}, epsilon: {self.epsilon}')
         return bool_val
+    
+
