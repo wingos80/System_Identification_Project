@@ -159,16 +159,51 @@ alpha_t    = alpha_m/(1+C_a_up)               # Reconstructing true alpha, noise
                                               #  alpha is unbiased as well
 alpha_t_kf = alpha_m_kf/(1+C_a_up)            # Reconstructing true alpha from KF
 
+# experimenting with using an exponentially weighted moving average to filter alpha_m
+
+rho = 0.95 # Rho value for smoothing
+
+s_prev = 0 # Initial value ewma value
+
+# Empty arrays to hold the smoothed data
+ewma, ewma_bias_corr = np.empty(0), np.empty(0) 
+
+for i in range(len(alpha_m)):
+    y = alpha_m[i]
+    # Variables to store smoothed data point
+    s_cur = 0
+    s_cur_bc = 0
+
+    s_cur = rho* s_prev + (1-rho)*y
+    s_cur_bc = s_cur/(1-(rho**(i+1)))
+    # Append new smoothed value to array
+    ewma = np.append(ewma,s_cur)
+    ewma_bias_corr = np.append(ewma_bias_corr,s_cur_bc)
+
+    s_prev = s_cur
+
+# Note to self, EWMA is much easier to implement, does not require any knowledge of the system, has a lot less places where bugs can occur, and also 
+# computes much faster than the IEKF (perhaps for other variants of the KF as well). However, if we inspect the output of EWMA, we can see that in some 
+# occasions the EWMA fails to predict the correct signs of the signal, which might be extremely costly in some applications. Moreover, there is a time 
+# delay associated with the signal computed with EWMA, and EWMA can only smooth out signals, it won't be able to reconstruct some unmeasurable states 
+# such as the true alpha or upwash coefficient: but KF's can. Moreover, KF's can be used to estimate the variance of the states, which is not possible 
+# with EWMA (but there is a way to build confidence intervals for EWMA, in page 8 of: http://www.wiley.com.tudelft.idm.oclc.org/legacy/wileychi/marketmodels/chapter5.pdf). 
+
+# In conclusion, KF's are more powerful than EWMA, but EWMA is much easier to implement and faster.
+
+
 # Plotting the true alpha and the reconstructed alpha
-y1, a1  = alpha_t    , 0.5                    # True alpha
-y2, a2  = alpha_m    , 0.5                    # Measured alpha
+y1, a1  = alpha_t    , 0.4                    # True alpha
+y2, a2  = alpha_m    , 0.4                    # Measured alpha
 y3, a3  = alpha_t_kf , 1.0                    # True alpha from KF
 y4, a4  = alpha_m_kf , 1.0                    # Predicted alpha from KF
+y5, a5  = ewma       , 1.0                    # ewma alpha
 
 ys  = { 'True alpha'              : [y1, a1],
         'Measured alpha'          : [y2, a2],
         'True alpha from KF'      : [y3, a3],
-        'Predicted alpha from KF' : [y4, a4]}
+        'Predicted alpha from KF' : [y4, a4],
+        'ewma alpha'              : [y5, a5]}
 
 plotter(x, ys, 'Reconstructed alpha', 'Time [s]', 'alpha [-]', printfigs)
 
