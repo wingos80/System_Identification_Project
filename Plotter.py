@@ -32,7 +32,7 @@ def plotter(x, y, title, xlabel, ylabel, save=False):
     for key, value in y.items():
         ax.plot(x, value[0], label=key, alpha=value[1])
     plt.grid(True)
-    plt.title(title); plt.xlabel(xlabel); plt.ylabel(ylabel); plt.legend()
+    plt.title(title, fontsize = 18); plt.xlabel(xlabel); plt.ylabel(ylabel); plt.legend()
     
     if save:
         plt.savefig(title + '.png')
